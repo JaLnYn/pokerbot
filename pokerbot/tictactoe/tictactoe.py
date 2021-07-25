@@ -1,7 +1,7 @@
 import torch 
 import time
 import sys
-
+import pickle
 
 
 class Node:
@@ -36,13 +36,13 @@ class Node:
     def get_actions(self):
         return self.n_actions
 
-class Game:
+class Trainer:
 
     def __init__(self):
         self.board="         "
         self.nodes = {}
         self.n_players = 2
-
+    
     def reward(self, state):
 
         n_actions = state.count(' ')
@@ -106,7 +106,7 @@ class Game:
                 #print(onny)
                 #print(prob)
                 new_prob = onny * prob
-                action_utils[cur_action] = -1 * self.cfr(new_state,turn,new_prob)
+                action_utils[cur_action] = -1 * self.cfr(new_state, turn, new_prob)
 
                 cur_action +=1
 
@@ -121,28 +121,39 @@ class Game:
     def train(self, n_iterations=50000):
         expected_game_value = 0
         for i in range(n_iterations):
-            if i%1 == 0:
+            if i%5 == 0:
                 print(i)
             expected_game_value += self.cfr('         ', 0, torch.tensor([1,1]))
-            for v in self.nodes:
+            for _, v in self.nodes.items():
                 v.update_strat()
-
         expected_game_value /= n_iterations
         #display_results(expected_game_value, self.nodes)
+
+def save_obj(obj, name):
+    with open('obj/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
 
 
 if __name__ == "__main__":
     time1 = time.time()
-    trainer = Game()
-    trainer.train(n_iterations=25000)
+    train = 1
+    trainer = None 
+
+    if train == 1:
+        trainer = Trainer()
+        trainer.train(n_iterations=100)
+        save_obj(trainer.nodes, "cfr_save")
+        print(trainer.nodes['1   0  10'].strategy)
+    else:
+        nodes = load_obj("cfr_save")
+        print(nodes['1   0  10'].strategy)
+
     print(abs(time1 - time.time()))
     print("Done")
-
-
-
-
-
-
-        
 
 
