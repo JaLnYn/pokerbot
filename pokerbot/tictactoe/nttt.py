@@ -36,7 +36,7 @@ class Trainer:
         self.board="         "
         self.nodes = {}
         self.n_players = 2
-        self.winner_mult = torch.zeros(self.n_players)
+        
     
     def reward(self, state):
 
@@ -63,16 +63,19 @@ class Trainer:
 
         if winner != None:
             winner = int(winner)
-            x = torch.ones(1,self.n_players)
+            x = -torch.ones(1,self.n_players)
             x[0][winner] = self.n_players -1
-            return torch.tensor(x)
+            #print("x",x)
+            return x
 
         return None
 
     def get_node(self, state):
+        
         if state not in self.nodes:
-            self.nodes[state] = Node(state)
-            return self.nodes[state] 
+          
+          self.nodes[state] = Node(state)
+          return self.nodes[state] 
         return self.nodes[state]
         
     def cfr(self, state, turn, prob_get_to):
@@ -90,12 +93,15 @@ class Trainer:
         #print("strategy:", strat)
         
         action_utils = torch.zeros(node.n_actions, self.n_players)
-        
+        cur_action = 0
         for act in range(len(state)):
             #find next space
-            cur_action = 0
+            
+            
             if state[act] == ' ':
                 new_state = state[:act] + str(cur_player) + state[act+1:]
+                
+
                 #onny = torch.ones(self.n_players)
                 #onny[cur_player] = strat[cur_action]
                 
@@ -104,17 +110,27 @@ class Trainer:
 
                 
                 next_cfr = self.cfr(new_state, turn, prob_get_to * strat[cur_action,0])
-                if debug > 1:
-                    print ("cfr ret", next_cfr)
-                action_utils[cur_action][:] = next_cfr #1xnplayers
-
-                cur_action +=1
+                #if debug > 1:
+                #if state == '1   0  10':
+                #  print ("|"+new_state+"|","cfr ret", next_cfr)
+                #  print(cur_action)
+                action_utils[cur_action,:] = next_cfr #1xnplayers
+                #if state == '1   0  10':
+                #  print("in",action_utils,strat)
+                cur_action += 1
 
         #print("action, strat", action_utils, strat)
         util = torch.sum(torch.mul(action_utils, strat), dim=0, keepdim=True)
-
+        if state == '1   0  10' and False:
+          print(action_utils,strat)
+          print(torch.mul(action_utils, strat))
+          print(util)
+          print("-----------------------")
         regret = action_utils[:,cur_player] - util[0,cur_player] # 1xn_action 
-
+        #if state == '1   0  10' or state == '1 01 0   ':
+        #  print (state)
+        #  print(node.strategy)
+        #  print(node.regret_sum)
         if debug > 1:
             print("util",util)
             print("actionutil",action_utils)
@@ -122,7 +138,7 @@ class Trainer:
             print("reg",regret)
 
         node.regret_sum += regret*prob_get_to
-
+        #print("util", util)
         return util 
 
     def train(self, n_iterations=50000):
@@ -130,9 +146,12 @@ class Trainer:
         for i in range(n_iterations):
             if i%3 == 1:
                 print(i)
-                #print(self.nodes['1   0  10'].regret_sum)
-                #print(self.nodes['1 01 0   '].regret_sum)
+            
             expected_game_value += self.cfr('         ', 0, 1)
+            
+            print(self.nodes['1   0  10'].regret_sum)
+            print(self.nodes['1 01 0   '].regret_sum)
+
             for _, v in self.nodes.items():
                 v.update_strat()
         expected_game_value /= n_iterations
@@ -155,15 +174,8 @@ if __name__ == "__main__":
 
     if train == 1:
         trainer = Trainer()
-        trainer.train(n_iterations=10)
+        trainer.train(n_iterations=500)
         save_obj(trainer.nodes, "cfr_save")
         print(trainer.nodes['1   0  10'].strategy)
     else:
         nodes = load_obj("cfr_save")
-        print(nodes['1   0  10'].strategy)
-        print(nodes['1 01 0   '].strategy)
-
-    print(abs(time1 - time.time()))
-    print("Done")
-
-
