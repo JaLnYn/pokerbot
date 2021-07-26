@@ -4,37 +4,29 @@ import sys
 import pickle
 
 
+debug = 0
+
 class Node:
     def __init__(self, state):
         self.state = state
         self.n_actions = state.count(' ')
-        if self.n_actions == 0:
-            print(state)
-            
+
         self.regret_sum = torch.zeros(self.n_actions)
-        self.strat_sum = torch.zeros(self.n_actions)
-        self.strategy=torch.tensor(1/self.n_actions).repeat(self.n_actions)
-        self.reach_pr = 0
-        self.reach_pr_sum = 0
+        self.strategy = torch.ones(self.n_actions,1)/self.n_actions
     
     def update_strat(self):
-        self.strat_sum += self.reach_pr * self.strategy
-        self.reach_pr_sum += self.reach_pr
-        self.strategy = self.get_strat()
-        self.reach_pr = 0
-
-    def get_strat(self):
+        
         regrets = self.regret_sum
         #print(regrets)
         regrets[regrets < 0] = 0
         normalize = sum(regrets)
         #print(regrets)
         if normalize > 0:
-            return regrets / normalize
+            self.strategy[:,0] = regrets / normalize
         else:
-            return torch.tensor(1/self.n_actions).repeat(self.n_actions)
+            self.strategy = torch.ones(self.n_actions,1)/self.n_actions
 
-
+        
     def get_actions(self):
         return self.n_actions
 
@@ -44,30 +36,38 @@ class Trainer:
         self.board="         "
         self.nodes = {}
         self.n_players = 2
+        self.winner_mult = torch.zeros(self.n_players)
     
     def reward(self, state):
 
         n_actions = state.count(' ')
-
+        winner = None
         if state[0] == state[1] and state[1] == state[2] and state[0] != ' ': # first row
-            return state[0]
+            winner = state[0]
         elif state[3] == state[4] and state[4] == state[5] and state[3] != ' ': # second row
-            return state[3]
+            winner = state[3]
         elif state[6] == state[7] and state[7] == state[8] and state[6] != ' ': # third row
-            return state[6]
+            winner = state[6]
         elif state[0] == state[4] and state[4] == state[8] and state[0] != ' ': # diag 2
-            return state[0]
+            winner = state[0]
         elif state[2] == state[4] and state[4] == state[6] and state[2] != ' ': # diag 1
-            return state[2]
+            winner = state[2]
         elif state[0] == state[3] and state[3] == state[6] and state[0] != ' ': # first column 
-            return state[0]
+            winner = state[0]
         elif state[1] == state[4] and state[4] == state[7] and state[1] != ' ': # second column
-            return state[1]
+            winner = state[1]
         elif state[2] == state[5] and state[5] == state[8] and state[2] != ' ': # third column
-            return state[2]
+            winner = state[2]
         if n_actions == 0:
-            return -2
-        return -1
+            return torch.zeros(1, self.n_players)
+
+        if winner != None:
+            winner = int(winner)
+            x = torch.ones(1,self.n_players)
+            x[0][winner] = self.n_players -1
+            return torch.tensor(x)
+
+        return None
 
     def get_node(self, state):
         if state not in self.nodes:
@@ -75,57 +75,64 @@ class Trainer:
             return self.nodes[state] 
         return self.nodes[state]
         
-    def cfr(self, state, turn, prob):
+    def cfr(self, state, turn, prob_get_to):
         n = turn 
         turn+=1
         cur_player = n % self.n_players
-        #print(cur_player)
         reward = self.reward(state)
         #print(reward)
-        reward = int(reward)
-        if reward != -1:
-            if reward == cur_player:
-                return 20
-            elif reward >= 0: 
-                return -20
-            elif reward == -2:
-                return 0
+        if reward != None:
+            #print("resard,", reward)
+            return reward
 
         node = self.get_node(state)
         strat = node.strategy
         #print("strategy:", strat)
         
-        action_utils = torch.zeros(node.n_actions)
+        action_utils = torch.zeros(node.n_actions, self.n_players)
         
         for act in range(len(state)):
             #find next space
             cur_action = 0
             if state[act] == ' ':
                 new_state = state[:act] + str(cur_player) + state[act+1:]
-                onny = torch.ones(self.n_players)
-                onny[cur_player] = strat[cur_action]
+                #onny = torch.ones(self.n_players)
+                #onny[cur_player] = strat[cur_action]
                 
                 #print(onny)
                 #print(prob)
-                new_prob = onny * prob
-                action_utils[cur_action] = -1 * self.cfr(new_state, turn, new_prob)
+
+                
+                next_cfr = self.cfr(new_state, turn, prob_get_to * strat[cur_action,0])
+                if debug > 1:
+                    print ("cfr ret", next_cfr)
+                action_utils[cur_action][:] = next_cfr #1xnplayers
 
                 cur_action +=1
 
-        util = sum (action_utils * strat)
-        regret = action_utils - util # 1xn_action 
+        #print("action, strat", action_utils, strat)
+        util = torch.sum(torch.mul(action_utils, strat), dim=0, keepdim=True)
 
-        node.reach_pr += prob[cur_player]
-        node.regret_sum += prob[(cur_player+1)%self.n_players] * regret
+        regret = action_utils[:,cur_player] - util[0,cur_player] # 1xn_action 
 
-        return util
+        if debug > 1:
+            print("util",util)
+            print("actionutil",action_utils)
+            print("actionutil2",action_utils[:,cur_player])
+            print("reg",regret)
+
+        node.regret_sum += regret*prob_get_to
+
+        return util 
 
     def train(self, n_iterations=50000):
         expected_game_value = 0
         for i in range(n_iterations):
-            if i%5 == 0:
+            if i%3 == 1:
                 print(i)
-            expected_game_value += self.cfr('         ', 0, torch.tensor([1,1]))
+                #print(self.nodes['1   0  10'].regret_sum)
+                #print(self.nodes['1 01 0   '].regret_sum)
+            expected_game_value += self.cfr('         ', 0, 1)
             for _, v in self.nodes.items():
                 v.update_strat()
         expected_game_value /= n_iterations
@@ -154,6 +161,7 @@ if __name__ == "__main__":
     else:
         nodes = load_obj("cfr_save")
         print(nodes['1   0  10'].strategy)
+        print(nodes['1 01 0   '].strategy)
 
     print(abs(time1 - time.time()))
     print("Done")
