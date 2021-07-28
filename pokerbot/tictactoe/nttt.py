@@ -12,10 +12,15 @@ class Node:
         self.n_actions = state.count(' ')
 
         self.regret_sum = torch.zeros(self.n_actions)
+        
+        self.strategy_sum = torch.zeros(self.n_actions,1)
+
+
         self.strategy = torch.ones(self.n_actions,1)/self.n_actions
     
-    def update_strat(self):
+    def update_strat(self, weight):
         
+
         regrets = self.regret_sum
         #print(regrets)
         regrets[regrets < 0] = 0
@@ -26,7 +31,15 @@ class Node:
         else:
             self.strategy = torch.ones(self.n_actions,1)/self.n_actions
 
-        
+        self.strategy_sum += self.strategy * weight
+
+    def get_average_strategy(self):
+        strategy = self.strategy_sum 
+
+        total = sum(strategy)
+        strategy /= total
+        return strategy
+
     def get_actions(self):
         return self.n_actions
 
@@ -91,9 +104,9 @@ class Trainer:
         
         action_utils = torch.zeros(node.n_actions, self.n_players)
         
+        cur_action = 0
         for act in range(len(state)):
             #find next space
-            cur_action = 0
             if state[act] == ' ':
                 new_state = state[:act] + str(cur_player) + state[act+1:]
                 #onny = torch.ones(self.n_players)
@@ -134,7 +147,7 @@ class Trainer:
                 #print(self.nodes['1 01 0   '].regret_sum)
             expected_game_value += self.cfr('         ', 0, 1)
             for _, v in self.nodes.items():
-                v.update_strat()
+                v.update_strat(1)
         expected_game_value /= n_iterations
         #display_results(expected_game_value, self.nodes)
 
@@ -150,17 +163,22 @@ def load_obj(name):
 
 if __name__ == "__main__":
     time1 = time.time()
-    train = 1
+    train = 0
     trainer = None 
 
     if train == 1:
         trainer = Trainer()
         trainer.train(n_iterations=10)
         save_obj(trainer.nodes, "cfr_save")
+        print(trainer.nodes['1   0  10'].get_average_strategy())
         print(trainer.nodes['1   0  10'].strategy)
+        print(trainer.nodes['1 01 0   '].get_average_strategy())    
+        print(trainer.nodes['1 01 0   '].strategy)
     else:
         nodes = load_obj("cfr_save")
+        print(nodes['1   0  10'].get_average_strategy())
         print(nodes['1   0  10'].strategy)
+        print(nodes['1 01 0   '].get_average_strategy())
         print(nodes['1 01 0   '].strategy)
 
     print(abs(time1 - time.time()))
