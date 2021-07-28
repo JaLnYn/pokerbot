@@ -16,11 +16,12 @@ import player
 
 class State:
     def __init__(self, players, history, player_count):
-        self.player_info = [[0,0]]* player_count
+        self.player_info = [[0,0,0,0]]* player_count
         for i in range(len(players)):
             self.player_info[i][0] = players[i].coins
             self.player_info[i][1] = players[i].cards[0]
             self.player_info[i][2] = players[i].cards[1]
+            self.player_info[i][3] = -1
         self.history = history
         
     def get_state(self, cur = None):
@@ -51,19 +52,12 @@ class State:
 
         return state
 
-    def is_term(self):
-        tot_ded = 0
+    def get_reward(self, player_id):
         players = self.player_info
-        not_ded = -1;
-        for i in range(players)
-            if players[i][2] == 9:
-                tot_ded += players[i].ded
-            else:
-                not_ded = i
-        if tot_ded == player_count - 1:
-            return not_ded
-        else: 
-            return -1
+        if players[player_id][1] == 9 and player[player_id][2] == 9:
+            # player is ded
+            return players[i][3]
+        return None
 
 
 class gameState:
@@ -168,7 +162,8 @@ class Game:
 
         print(my_cards)
 
-        if self.state.is_term(history):
+        term = self.state.get_reward(cur_player)
+        if  term != -1:
             player = self.deck[cur_player]
             op = self.deck[(cur_player+1)%2]
             reward = self.reward(history, player, op)

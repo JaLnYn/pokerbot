@@ -14,14 +14,23 @@ Class Player:
         self.ded = 0
 
     def action(self, state):
+        if ded == 1:
+            return -1
+
         action = self.agent.action(state, self)
         return action
     
     def block(self, state):
+        if ded == 1:
+            return -1
+
         action = self.agent.block(state, self)
         return action
 
     def challange(self, state):
+        if ded == 1:
+            return -1
+
         challenge = self.agent.challenge(state, self)
         return challenege
 

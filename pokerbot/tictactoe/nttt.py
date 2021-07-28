@@ -162,8 +162,8 @@ class Trainer:
             
             expected_game_value += self.cfr('         ', 0, 1)
             
-            print(self.nodes['1   0  10'].regret_sum)
-            print(self.nodes['1 01 0   '].regret_sum)
+            #print(self.nodes['1   0  10'].regret_sum)
+            #print(self.nodes['1 01 0   '].regret_sum)
 
             for _, v in self.nodes.items():
                 v.update_strat(1)
@@ -182,12 +182,12 @@ def load_obj(name):
 
 if __name__ == "__main__":
     time1 = time.time()
-    train = 0
+    train = 1
     trainer = None 
 
     if train == 1:
         trainer = Trainer()
-        trainer.train(n_iterations=500)
+        trainer.train(n_iterations=10)
         save_obj(trainer.nodes, "cfr_save")
         print(trainer.nodes['1   0  10'].get_average_strategy())
         print(trainer.nodes['1   0  10'].strategy)
